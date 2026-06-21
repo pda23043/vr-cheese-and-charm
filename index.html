@@ -1,0 +1,249 @@
+<html>
+
+<head>
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+  <script src="https://gftruj.github.io/webzamples/aframe/controls/oculus-thumbstick-controls.js"></script>
+  <script src="random-map.js"></script>
+  <script src="custom-objects.js"></script>
+  <script src="build-maze.js"></script>
+  <script>
+    // CUSTOM MAP: starting point (-1), open space (0), walls (1-2), cameras (3), floor exits (5)
+    let MAP = [[
+      [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2],
+      [1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1],
+      [1, 1, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1],
+      [1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1],
+      [1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1],
+      [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+      [1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1],
+      [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+      [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2]
+    ], [
+      [2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 2],
+      [1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 5, 1],
+      [1, 1, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1],
+      [1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1],
+      [1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1],
+      [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 1],
+      [1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1],
+      [1, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 1],
+      [2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2]
+    ], [
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0],
+      [0, 0, 0, 5, 0, 1, 1, 1, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    ]];
+    // MAP GENERATOR: enter number of levels, floor dimensions and cameras per level (or use the custom map instead)
+    MAP = randomMap(5, 10, 10, 3);
+
+    // GENERAL PARAMETERS: time available (-1 for no limit), block dimensions (width, height), custom colors and messages
+    const GAME = {
+      timeLeft: -1,
+      cellSize: [4, 4],
+      statusText: ['GAME OVER', 'WELL DONE', 'LEVEL:', 'TIME:'],
+      textColors: ['firebrick', 'goldenrod', 'white', 'white']
+    };
+  </script>
+  <script src="game-logic.js"></script>
+<script>
+AFRAME.registerComponent('cheese-game', {
+  init: function () {
+    this.score = 0;
+    this.totalCheese = 6;
+    this.gameOver = false;
+
+    this.cheesePositions = [
+      { x: 4, y: 1.2, z: -6 },
+      { x: -6, y: 1.2, z: -8 },
+      { x: 8, y: 1.2, z: -12 },
+      { x: -10, y: 1.2, z: 4 },
+      { x: 6, y: 1.2, z: 8 },
+      { x: -4, y: 1.2, z: 12 }
+    ];
+
+    this.createCheese();
+    this.createMouse();
+    this.createScoreText();
+  },
+
+  createCheese: function () {
+    const scene = this.el;
+
+    this.cheeses = [];
+
+    this.cheesePositions.forEach((pos, index) => {
+      const cheese = document.createElement('a-entity');
+
+      cheese.setAttribute('geometry', {
+        primitive: 'box',
+        width: 0.8,
+        height: 0.35,
+        depth: 0.8
+      });
+
+      cheese.setAttribute('material', {
+        color: 'gold',
+        emissive: '#ffcc00',
+        emissiveIntensity: 0.3
+      });
+
+      cheese.setAttribute('position', `${pos.x} ${pos.y} ${pos.z}`);
+      cheese.setAttribute('rotation', `0 45 0`);
+      cheese.setAttribute('id', `cheese-${index}`);
+
+      cheese.setAttribute('animation', {
+        property: 'rotation',
+        to: '0 405 0',
+        loop: true,
+        dur: 3000,
+        easing: 'linear'
+      });
+
+      scene.appendChild(cheese);
+      this.cheeses.push(cheese);
+    });
+  },
+
+  createMouse: function () {
+    const scene = this.el;
+
+    this.mouse = document.createElement('a-entity');
+
+    this.mouse.setAttribute('geometry', {
+      primitive: 'sphere',
+      radius: 0.55
+    });
+
+    this.mouse.setAttribute('material', {
+      color: 'gray'
+    });
+
+    this.mouse.setAttribute('position', '0 0.7 -15');
+
+    const ear1 = document.createElement('a-sphere');
+    ear1.setAttribute('radius', '0.18');
+    ear1.setAttribute('position', '-0.35 0.35 -0.1');
+    ear1.setAttribute('color', 'pink');
+
+    const ear2 = document.createElement('a-sphere');
+    ear2.setAttribute('radius', '0.18');
+    ear2.setAttribute('position', '0.35 0.35 -0.1');
+    ear2.setAttribute('color', 'pink');
+
+    this.mouse.appendChild(ear1);
+    this.mouse.appendChild(ear2);
+
+    scene.appendChild(this.mouse);
+  },
+
+  createScoreText: function () {
+    const camera = document.querySelector('a-camera');
+
+    this.scoreText = document.createElement('a-text');
+    this.scoreText.setAttribute('value', `CHEESE: 0 / ${this.totalCheese}`);
+    this.scoreText.setAttribute('position', '0 -0.25 -1');
+    this.scoreText.setAttribute('align', 'center');
+    this.scoreText.setAttribute('width', '1.8');
+    this.scoreText.setAttribute('color', 'yellow');
+
+    camera.appendChild(this.scoreText);
+  },
+
+  tick: function () {
+    if (this.gameOver) return;
+
+    const rig = document.querySelector('#rig');
+    if (!rig) return;
+
+    const playerPos = rig.object3D.position;
+
+    this.checkCheeseCollection(playerPos);
+    this.moveMouseTowardsPlayer(playerPos);
+    this.checkMouseCollision(playerPos);
+  },
+
+  checkCheeseCollection: function (playerPos) {
+    this.cheeses.forEach((cheese, index) => {
+      if (!cheese.parentNode) return;
+
+      const cheesePos = cheese.object3D.position;
+      const distance = playerPos.distanceTo(cheesePos);
+
+      if (distance < 1.5) {
+        cheese.parentNode.removeChild(cheese);
+        this.score++;
+
+        this.scoreText.setAttribute(
+          'value',
+          `CHEESE: ${this.score} / ${this.totalCheese}`
+        );
+
+        if (this.score === this.totalCheese) {
+          this.winGame();
+        }
+      }
+    });
+  },
+
+  moveMouseTowardsPlayer: function (playerPos) {
+    const mousePos = this.mouse.object3D.position;
+
+    const direction = new THREE.Vector3()
+      .subVectors(playerPos, mousePos)
+      .normalize();
+
+    mousePos.x += direction.x * 0.02;
+    mousePos.z += direction.z * 0.02;
+  },
+
+  checkMouseCollision: function (playerPos) {
+    const mousePos = this.mouse.object3D.position;
+    const distance = playerPos.distanceTo(mousePos);
+
+    if (distance < 1.2) {
+      this.gameOver = true;
+      this.scoreText.setAttribute('value', 'GAME OVER! THE MOUSE CAUGHT YOU!');
+      this.scoreText.setAttribute('color', 'red');
+    }
+  },
+
+  winGame: function () {
+    this.gameOver = true;
+    this.scoreText.setAttribute('value', 'YOU WIN! ALL CHEESE COLLECTED!');
+    this.scoreText.setAttribute('color', 'lime');
+  }
+});
+</script>
+</head>
+
+<body>
+  <a-scene background="color: skyblue" game-logic cheese game>
+
+    <!-- DAYLIGHT -->
+    <a-light type="ambient" intensity="0.1"></a-light>
+    <a-light type="directional" position="100 100 100" intensity="0.2"></a-light>
+
+    <!-- BUILDING -->
+    <a-entity id="maze"></a-entity>
+
+    <!-- CAMERA & INFO -->
+    <a-entity id="rig">
+      <a-camera>
+        <a-text id="floor" position="0 0.007 -0.01" align="center" width="0.015" font="monoid"></a-text>
+        <a-text id="message" value="" position="0 0 -0.01" align="center" width="0.05" font="monoid"></a-text>
+      </a-camera>
+      <a-entity oculus-touch-controls="hand: right" oculus-thumbstick-controls></a-entity>
+    </a-entity>
+
+    <!-- SOUND FX -->
+    <a-sound id="fall" src="mixkit-falling-on-foil-748.wav"></a-sound>
+  </a-scene>
+</body>
+
+</html>
